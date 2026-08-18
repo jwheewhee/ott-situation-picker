@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import supabase
 from app.services.analysis import analyze_sentiment, extract_keywords
@@ -8,6 +9,14 @@ from app.services.storage import save_to_db
 from app.services.tmdb import get_netflix_movies, get_netflix_tv
 
 app = FastAPI(title="OTT Situation Picker API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
