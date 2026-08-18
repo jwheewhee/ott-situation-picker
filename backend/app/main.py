@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.services.analysis import analyze_sentiment, extract_keywords
 from app.services.naver import search_naver_blog
 from app.services.scoring import calculate_fit_scores
+from app.services.storage import save_to_db
 from app.services.tmdb import get_netflix_movies, get_netflix_tv
 
 app = FastAPI(title="OTT Situation Picker API")
@@ -53,3 +54,9 @@ def get_contents_scored():
         movie["fit_scores"] = calculate_fit_scores(movie, movies)
 
     return movies
+
+
+@app.post("/api/sync")
+def sync_contents():
+    contents = get_contents_scored()
+    return save_to_db(contents)
