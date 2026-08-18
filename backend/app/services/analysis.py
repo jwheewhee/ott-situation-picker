@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 from konlpy.tag import Okt
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -86,6 +87,31 @@ def analyze_sentiment_per_review(review_text: str) -> dict:
     sentiment_score = analyze_sentiment([review_text])
     star_rating = convert_to_star_rating(sentiment_score)
     return {**sentiment_score, "star_rating": star_rating}
+
+
+_HASHTAG_RE = re.compile(r"#\S+")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?\n])\s+")
+
+_OPINION_KEYWORDS = [
+    "좋았다", "별로", "추천", "몰입", "재밌", "지루", "실망",
+    "인생영화", "꿀잼", "노잼", "아쉽", "만족",
+]
+
+
+def extract_opinion_sentences(full_text: str, max_sentences: int = 2) -> list[str]:
+    if not full_text:
+        return []
+
+    without_hashtags = _HASHTAG_RE.sub("", full_text)
+    sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(without_hashtags) if s.strip()]
+
+    opinion_sentences = [
+        sentence
+        for sentence in sentences
+        if any(keyword in sentence for keyword in _OPINION_KEYWORDS)
+    ]
+
+    return opinion_sentences[:max_sentences]
 
 
 def extract_keywords(reviews: list[str], top_n: int = 5) -> list[str]:

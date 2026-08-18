@@ -12,7 +12,7 @@ app = FastAPI(title="OTT Situation Picker API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5177"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -128,13 +128,17 @@ def _fetch_review_snippets_by_content_id(
 def _fetch_review_snippets_with_rating(content_id: int, limit: int = 5) -> list[dict]:
     rows = (
         supabase.table("review")
-        .select("description, star_rating")
+        .select("description, summary, star_rating")
         .eq("content_id", content_id)
         .limit(limit)
         .execute()
         .data
     )
-    return [row for row in rows if row["description"]]
+    return [
+        {"summary": row["summary"] or row["description"], "star_rating": row["star_rating"]}
+        for row in rows
+        if row["summary"] or row["description"]
+    ]
 
 
 @app.get("/api/situations/{situation_name}/contents")

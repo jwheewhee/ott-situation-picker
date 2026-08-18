@@ -1,5 +1,6 @@
 from app.db import supabase
-from app.services.analysis import analyze_sentiment_per_review, convert_to_star_rating
+from app.services.analysis import analyze_sentiment_per_review, convert_to_star_rating, extract_opinion_sentences
+from app.services.naver import fetch_blog_full_text
 
 
 def _effective_runtime(content: dict) -> int | None:
@@ -69,6 +70,11 @@ def save_to_db(contents: list[dict]) -> dict:
             )
 
         for review in content.get("reviews", []):
+            full_text = fetch_blog_full_text(review.get("link", ""))
+            opinion_sentences = extract_opinion_sentences(full_text)
+            if not opinion_sentences:
+                continue
+
             review_text = f"{review.get('title', '')} {review.get('description', '')}".strip()
             review_sentiment = analyze_sentiment_per_review(review_text)
             review_rows.append(
@@ -77,6 +83,7 @@ def save_to_db(contents: list[dict]) -> dict:
                     "title": review.get("title"),
                     "description": review.get("description"),
                     "star_rating": review_sentiment["star_rating"],
+                    "summary": " ".join(opinion_sentences),
                 }
             )
 

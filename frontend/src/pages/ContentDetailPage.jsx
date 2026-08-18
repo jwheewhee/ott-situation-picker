@@ -125,7 +125,7 @@ function ContentDetailPage() {
                 {snippet.star_rating != null && (
                   <span className="review-quote-rating">{renderStars(snippet.star_rating)}</span>
                 )}
-                <p className="review-quote-text">“{snippet.description}”</p>
+                <p className="review-quote-text">“{snippet.summary}”</p>
               </blockquote>
             ))}
           </div>

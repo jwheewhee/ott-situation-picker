@@ -1,8 +1,10 @@
 import html
 import os
 import re
+from urllib.parse import urljoin
 
 import requests
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -46,8 +48,63 @@ def search_naver_blog(movie_title: str, count: int = 5) -> list[dict]:
         {
             "title": _clean_text(item.get("title", "")),
             "description": _clean_text(item.get("description", "")),
+            "link": item.get("link", ""),
         }
         for item in items
     ]
 
     return [item for item in cleaned_items if _is_relevant(item)]
+
+
+_REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
+_NAVER_CONTENT_SELECTORS = [".se-main-container", "#postViewArea"]
+
+
+def _fetch_html(url: str) -> BeautifulSoup | None:
+    try:
+        response = requests.get(url, headers=_REQUEST_HEADERS, timeout=10)
+        response.raise_for_status()
+    except requests.RequestException:
+        return None
+
+    return BeautifulSoup(response.text, "html.parser")
+
+
+def fetch_blog_full_text(url: str) -> str:
+    if not url:
+        return ""
+
+    soup = _fetch_html(url)
+    if soup is None:
+        return ""
+
+    is_naver_blog = "blog.naver.com" in url
+
+    if is_naver_blog:
+        # blog.naver.com renders the post inside an iframe; the real content
+        # lives at the iframe's src, not the outer page.
+        iframe = soup.find("iframe", id="mainFrame")
+        if iframe and iframe.get("src"):
+            inner_url = urljoin("https://blog.naver.com", iframe["src"])
+            inner_soup = _fetch_html(inner_url)
+            if inner_soup is not None:
+                soup = inner_soup
+
+        for selector in _NAVER_CONTENT_SELECTORS:
+            content = soup.select_one(selector)
+            if content:
+                return content.get_text(separator=" ", strip=True)
+
+        return ""
+
+    # Best-effort fallback for non-Naver blog platforms (e.g. Tistory).
+    article = soup.find("article")
+    if article:
+        return article.get_text(separator=" ", strip=True)
+
+    paragraphs = soup.find_all("p")
+    if paragraphs:
+        return " ".join(p.get_text(separator=" ", strip=True) for p in paragraphs)
+
+    return ""
