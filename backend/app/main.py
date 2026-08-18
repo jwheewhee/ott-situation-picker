@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
+from app.db import supabase
 from app.services.analysis import analyze_sentiment, extract_keywords
 from app.services.naver import search_naver_blog
 from app.services.scoring import calculate_fit_scores
@@ -60,3 +61,98 @@ def get_contents_scored():
 def sync_contents():
     contents = get_contents_scored()
     return save_to_db(contents)
+
+
+def _execute_maybe_single(query):
+    response = query.maybe_single().execute()
+    return response.data if response is not None else None
+
+
+def _fetch_review_tags_by_content_id(content_ids: list[int], limit_per_content: int = 5) -> dict[int, dict]:
+    if not content_ids:
+        return {}
+
+    rows = (
+        supabase.table("review_tag")
+        .select("content_id, tag_name, sentiment_label")
+        .in_("content_id", content_ids)
+        .execute()
+        .data
+    )
+
+    grouped: dict[int, dict] = {}
+    for row in rows:
+        bucket = grouped.setdefault(
+            row["content_id"], {"keywords": [], "sentiment_label": row["sentiment_label"]}
+        )
+        if len(bucket["keywords"]) < limit_per_content:
+            bucket["keywords"].append(row["tag_name"])
+
+    return grouped
+
+
+@app.get("/api/situations/{situation_name}/contents")
+def get_situation_contents(situation_name: str):
+    situation = _execute_maybe_single(supabase.table("situation").select("id").eq("name", situation_name))
+    if situation is None:
+        raise HTTPException(status_code=404, detail="situation not found")
+
+    rows = (
+        supabase.table("content_situation")
+        .select("fit_score, content(id, title, genre, poster_url, runtime)")
+        .eq("situation_id", situation["id"])
+        .order("fit_score", desc=True)
+        .execute()
+        .data
+    )
+
+    content_ids = [row["content"]["id"] for row in rows if row["content"]]
+    tags_by_content_id = _fetch_review_tags_by_content_id(content_ids)
+
+    results = []
+    for row in rows:
+        content = row["content"]
+        if content is None:
+            continue
+
+        tags = tags_by_content_id.get(content["id"], {"keywords": [], "sentiment_label": None})
+        results.append(
+            {
+                **content,
+                "fit_score": row["fit_score"],
+                "keywords": tags["keywords"],
+                "sentiment_label": tags["sentiment_label"],
+            }
+        )
+
+    return results
+
+
+@app.get("/api/contents/{content_id}")
+def get_content_detail(content_id: int):
+    content = _execute_maybe_single(supabase.table("content").select("*").eq("id", content_id))
+    if content is None:
+        raise HTTPException(status_code=404, detail="content not found")
+
+    review_tags = (
+        supabase.table("review_tag")
+        .select("tag_name, sentiment_score, sentiment_label")
+        .eq("content_id", content_id)
+        .execute()
+        .data
+    )
+
+    fit_score_rows = (
+        supabase.table("content_situation")
+        .select("fit_score, situation(name)")
+        .eq("content_id", content_id)
+        .execute()
+        .data
+    )
+    fit_scores = {row["situation"]["name"]: row["fit_score"] for row in fit_score_rows if row["situation"]}
+
+    return {
+        **content,
+        "review_tags": review_tags,
+        "fit_scores": fit_scores,
+    }
