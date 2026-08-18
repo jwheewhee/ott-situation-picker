@@ -26,7 +26,7 @@ def search_naver_blog(movie_title: str, count: int = 5) -> list[dict]:
             "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
         },
         params={
-            "query": movie_title,
+            "query": f"{movie_title} 영화 후기",
             "display": count,
             "sort": "sim",
         },

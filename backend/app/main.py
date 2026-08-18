@@ -2,7 +2,8 @@ from fastapi import FastAPI
 
 from app.services.analysis import analyze_sentiment, extract_keywords
 from app.services.naver import search_naver_blog
-from app.services.tmdb import get_netflix_movies
+from app.services.scoring import calculate_fit_scores
+from app.services.tmdb import get_netflix_movies, get_netflix_tv
 
 app = FastAPI(title="OTT Situation Picker API")
 
@@ -24,12 +25,12 @@ def get_reviews(movie_title: str):
 
 @app.get("/api/contents-with-reviews")
 def get_contents_with_reviews():
-    movies = get_netflix_movies()
+    contents = get_netflix_movies() + get_netflix_tv()
 
-    for movie in movies:
-        movie["reviews"] = search_naver_blog(f"{movie['title']} 영화")
+    for content in contents:
+        content["reviews"] = search_naver_blog(content["title"])
 
-    return movies
+    return contents
 
 
 @app.get("/api/contents-analyzed")
@@ -40,5 +41,15 @@ def get_contents_analyzed():
         review_texts = [f"{r['title']} {r['description']}".strip() for r in movie["reviews"]]
         movie["sentiment_score"] = analyze_sentiment(review_texts)
         movie["keywords"] = extract_keywords(review_texts)
+
+    return movies
+
+
+@app.get("/api/contents-scored")
+def get_contents_scored():
+    movies = get_contents_analyzed()
+
+    for movie in movies:
+        movie["fit_scores"] = calculate_fit_scores(movie, movies)
 
     return movies
