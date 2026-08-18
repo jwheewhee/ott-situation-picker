@@ -82,6 +82,12 @@ def convert_to_star_rating(sentiment_score: dict) -> int:
     return 1
 
 
+def analyze_sentiment_per_review(review_text: str) -> dict:
+    sentiment_score = analyze_sentiment([review_text])
+    star_rating = convert_to_star_rating(sentiment_score)
+    return {**sentiment_score, "star_rating": star_rating}
+
+
 def extract_keywords(reviews: list[str], top_n: int = 5) -> list[str]:
     if not reviews:
         return []

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getContentDetail } from '../api'
-import { sentimentClass } from '../utils'
+import { renderStars, sentimentClass } from '../utils'
 
 function ContentDetailPage() {
   const { id } = useParams()
@@ -61,6 +61,17 @@ function ContentDetailPage() {
         <div className="detail-body">
           <h1>{content.title}</h1>
 
+          <div className="star-rating" aria-label={`평점 ${content.star_rating ?? '정보 없음'} / 5`}>
+            {content.star_rating != null ? (
+              <>
+                <span className="star-rating-icons">{renderStars(content.star_rating)}</span>
+                <span className="star-rating-value">{content.star_rating} / 5</span>
+              </>
+            ) : (
+              <span className="star-rating-empty">평점 정보 없음</span>
+            )}
+          </div>
+
           <div className="tag-list">
             {content.genre?.map((genre) => (
               <span key={genre} className="tag">
@@ -104,6 +115,24 @@ function ContentDetailPage() {
           </div>
         </div>
       </div>
+
+      <section className="review-section">
+        <h2>실제 이용자 후기</h2>
+        {content.review_snippets?.length > 0 ? (
+          <div className="review-quote-grid">
+            {content.review_snippets.map((snippet, index) => (
+              <blockquote key={index} className="review-quote-card">
+                {snippet.star_rating != null && (
+                  <span className="review-quote-rating">{renderStars(snippet.star_rating)}</span>
+                )}
+                <p className="review-quote-text">“{snippet.description}”</p>
+              </blockquote>
+            ))}
+          </div>
+        ) : (
+          <p className="message">등록된 후기가 없습니다.</p>
+        )}
+      </section>
     </div>
   )
 }

@@ -13,9 +13,16 @@ NAVER_BLOG_SEARCH_URL = "https://openapi.naver.com/v1/search/blog.json"
 
 _TAG_RE = re.compile(r"<[^>]+>")
 
+_IRRELEVANT_KEYWORDS = ["방탈출", "카페", "체험", "리마스터링"]
+
 
 def _clean_text(text: str) -> str:
     return html.unescape(_TAG_RE.sub("", text)).strip()
+
+
+def _is_relevant(item: dict) -> bool:
+    text = f"{item['title']} {item['description']}"
+    return not any(keyword in text for keyword in _IRRELEVANT_KEYWORDS)
 
 
 def search_naver_blog(movie_title: str, count: int = 5) -> list[dict]:
@@ -35,10 +42,12 @@ def search_naver_blog(movie_title: str, count: int = 5) -> list[dict]:
     response.raise_for_status()
     items = response.json().get("items", [])
 
-    return [
+    cleaned_items = [
         {
             "title": _clean_text(item.get("title", "")),
             "description": _clean_text(item.get("description", "")),
         }
         for item in items
     ]
+
+    return [item for item in cleaned_items if _is_relevant(item)]

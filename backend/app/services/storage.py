@@ -1,5 +1,5 @@
 from app.db import supabase
-from app.services.analysis import convert_to_star_rating
+from app.services.analysis import analyze_sentiment_per_review, convert_to_star_rating
 
 
 def _effective_runtime(content: dict) -> int | None:
@@ -69,11 +69,14 @@ def save_to_db(contents: list[dict]) -> dict:
             )
 
         for review in content.get("reviews", []):
+            review_text = f"{review.get('title', '')} {review.get('description', '')}".strip()
+            review_sentiment = analyze_sentiment_per_review(review_text)
             review_rows.append(
                 {
                     "content_id": content_id,
                     "title": review.get("title"),
                     "description": review.get("description"),
+                    "star_rating": review_sentiment["star_rating"],
                 }
             )
 

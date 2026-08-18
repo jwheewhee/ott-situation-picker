@@ -125,6 +125,18 @@ def _fetch_review_snippets_by_content_id(
     return grouped
 
 
+def _fetch_review_snippets_with_rating(content_id: int, limit: int = 5) -> list[dict]:
+    rows = (
+        supabase.table("review")
+        .select("description, star_rating")
+        .eq("content_id", content_id)
+        .limit(limit)
+        .execute()
+        .data
+    )
+    return [row for row in rows if row["description"]]
+
+
 @app.get("/api/situations/{situation_name}/contents")
 def get_situation_contents(situation_name: str):
     situation = _execute_maybe_single(supabase.table("situation").select("id").eq("name", situation_name))
@@ -187,7 +199,7 @@ def get_content_detail(content_id: int):
     )
     fit_scores = {row["situation"]["name"]: row["fit_score"] for row in fit_score_rows if row["situation"]}
 
-    review_snippets = _fetch_review_snippets_by_content_id([content_id]).get(content_id, [])
+    review_snippets = _fetch_review_snippets_with_rating(content_id)
 
     return {
         **content,
