@@ -64,6 +64,24 @@ def analyze_sentiment(reviews: list[str]) -> dict:
     return {"score": round(average_score, 3), "label": label}
 
 
+_STAR_RATING_THRESHOLDS = [
+    (1.2, 5),
+    (0.4, 4),
+    (-0.4, 3),
+    (-1.2, 2),
+]
+
+
+def convert_to_star_rating(sentiment_score: dict) -> int:
+    score = sentiment_score.get("score", 0)
+
+    for threshold, rating in _STAR_RATING_THRESHOLDS:
+        if score >= threshold:
+            return rating
+
+    return 1
+
+
 def extract_keywords(reviews: list[str], top_n: int = 5) -> list[str]:
     if not reviews:
         return []

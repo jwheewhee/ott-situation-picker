@@ -1,4 +1,5 @@
 from app.db import supabase
+from app.services.analysis import convert_to_star_rating
 
 
 def _effective_runtime(content: dict) -> int | None:
@@ -17,6 +18,7 @@ def save_to_db(contents: list[dict]) -> dict:
             "runtime": _effective_runtime(content),
             "poster_url": content.get("poster_url"),
             "overview": content.get("overview"),
+            "star_rating": convert_to_star_rating(content.get("sentiment_score", {})),
         }
         for content in contents
     ]
@@ -29,8 +31,14 @@ def save_to_db(contents: list[dict]) -> dict:
     situations = supabase.table("situation").select("id, name").execute().data
     situation_id_by_name = {row["name"]: row["id"] for row in situations}
 
+    content_ids = list(content_id_by_title.values())
+    if content_ids:
+        supabase.table("review_tag").delete().in_("content_id", content_ids).execute()
+        supabase.table("review").delete().in_("content_id", content_ids).execute()
+
     content_situation_rows = []
     review_tag_rows = []
+    review_rows = []
 
     for content in contents:
         content_id = content_id_by_title.get(content["title"])
@@ -60,6 +68,15 @@ def save_to_db(contents: list[dict]) -> dict:
                 }
             )
 
+        for review in content.get("reviews", []):
+            review_rows.append(
+                {
+                    "content_id": content_id,
+                    "title": review.get("title"),
+                    "description": review.get("description"),
+                }
+            )
+
     if content_situation_rows:
         supabase.table("content_situation").upsert(
             content_situation_rows, on_conflict="content_id,situation_id"
@@ -68,8 +85,12 @@ def save_to_db(contents: list[dict]) -> dict:
     if review_tag_rows:
         supabase.table("review_tag").insert(review_tag_rows).execute()
 
+    if review_rows:
+        supabase.table("review").insert(review_rows).execute()
+
     return {
         "contents_saved": len(upserted_content),
         "fit_scores_saved": len(content_situation_rows),
         "review_tags_saved": len(review_tag_rows),
+        "reviews_saved": len(review_rows),
     }

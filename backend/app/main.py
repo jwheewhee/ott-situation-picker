@@ -100,6 +100,31 @@ def _fetch_review_tags_by_content_id(content_ids: list[int], limit_per_content: 
     return grouped
 
 
+def _fetch_review_snippets_by_content_id(
+    content_ids: list[int], limit_per_content: int = 5
+) -> dict[int, list[str]]:
+    if not content_ids:
+        return {}
+
+    rows = (
+        supabase.table("review")
+        .select("content_id, description")
+        .in_("content_id", content_ids)
+        .execute()
+        .data
+    )
+
+    grouped: dict[int, list[str]] = {}
+    for row in rows:
+        if not row["description"]:
+            continue
+        snippets = grouped.setdefault(row["content_id"], [])
+        if len(snippets) < limit_per_content:
+            snippets.append(row["description"])
+
+    return grouped
+
+
 @app.get("/api/situations/{situation_name}/contents")
 def get_situation_contents(situation_name: str):
     situation = _execute_maybe_single(supabase.table("situation").select("id").eq("name", situation_name))
@@ -108,7 +133,7 @@ def get_situation_contents(situation_name: str):
 
     rows = (
         supabase.table("content_situation")
-        .select("fit_score, content(id, title, genre, poster_url, runtime)")
+        .select("fit_score, content(id, title, genre, poster_url, runtime, star_rating)")
         .eq("situation_id", situation["id"])
         .order("fit_score", desc=True)
         .execute()
@@ -117,6 +142,7 @@ def get_situation_contents(situation_name: str):
 
     content_ids = [row["content"]["id"] for row in rows if row["content"]]
     tags_by_content_id = _fetch_review_tags_by_content_id(content_ids)
+    snippets_by_content_id = _fetch_review_snippets_by_content_id(content_ids)
 
     results = []
     for row in rows:
@@ -131,6 +157,7 @@ def get_situation_contents(situation_name: str):
                 "fit_score": row["fit_score"],
                 "keywords": tags["keywords"],
                 "sentiment_label": tags["sentiment_label"],
+                "review_snippets": snippets_by_content_id.get(content["id"], []),
             }
         )
 
@@ -160,8 +187,11 @@ def get_content_detail(content_id: int):
     )
     fit_scores = {row["situation"]["name"]: row["fit_score"] for row in fit_score_rows if row["situation"]}
 
+    review_snippets = _fetch_review_snippets_by_content_id([content_id]).get(content_id, [])
+
     return {
         **content,
         "review_tags": review_tags,
         "fit_scores": fit_scores,
+        "review_snippets": review_snippets,
     }
