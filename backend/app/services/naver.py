@@ -17,6 +17,8 @@ _TAG_RE = re.compile(r"<[^>]+>")
 
 _IRRELEVANT_KEYWORDS = ["방탈출", "카페", "체험", "리마스터링"]
 
+_QUERY_SUFFIXES = ["영화 후기", "리뷰"]
+
 
 def _clean_text(text: str) -> str:
     return html.unescape(_TAG_RE.sub("", text)).strip()
@@ -27,7 +29,7 @@ def _is_relevant(item: dict) -> bool:
     return not any(keyword in text for keyword in _IRRELEVANT_KEYWORDS)
 
 
-def search_naver_blog(movie_title: str, count: int = 5) -> list[dict]:
+def _search_naver_blog_once(query: str, count: int) -> list[dict]:
     response = requests.get(
         NAVER_BLOG_SEARCH_URL,
         headers={
@@ -35,7 +37,7 @@ def search_naver_blog(movie_title: str, count: int = 5) -> list[dict]:
             "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
         },
         params={
-            "query": f"{movie_title} 영화 후기",
+            "query": query,
             "display": count,
             "sort": "sim",
         },
@@ -44,7 +46,7 @@ def search_naver_blog(movie_title: str, count: int = 5) -> list[dict]:
     response.raise_for_status()
     items = response.json().get("items", [])
 
-    cleaned_items = [
+    return [
         {
             "title": _clean_text(item.get("title", "")),
             "description": _clean_text(item.get("description", "")),
@@ -53,7 +55,23 @@ def search_naver_blog(movie_title: str, count: int = 5) -> list[dict]:
         for item in items
     ]
 
-    return [item for item in cleaned_items if _is_relevant(item)]
+
+def search_naver_blog(movie_title: str, count: int = 10) -> list[dict]:
+    all_items: list[dict] = []
+    for suffix in _QUERY_SUFFIXES:
+        all_items.extend(_search_naver_blog_once(f"{movie_title} {suffix}", count))
+
+    seen_links: set[str] = set()
+    deduped_items = []
+    for item in all_items:
+        link = item["link"]
+        if link and link in seen_links:
+            continue
+        if link:
+            seen_links.add(link)
+        deduped_items.append(item)
+
+    return [item for item in deduped_items if _is_relevant(item)]
 
 
 _REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}

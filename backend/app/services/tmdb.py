@@ -95,45 +95,89 @@ def _discover_pages(media_type: str, count: int) -> list[dict]:
     return results[:count]
 
 
+def _build_movie_content(movie: dict, genre_map: dict[int, str]) -> dict:
+    poster_path = movie.get("poster_path")
+    return {
+        "title": movie.get("title"),
+        "genre": [genre_map.get(gid, "") for gid in movie.get("genre_ids", [])],
+        "runtime": _get_runtime(movie["id"]),
+        "poster_url": f"{TMDB_IMAGE_BASE_URL}{poster_path}" if poster_path else None,
+        "overview": movie.get("overview"),
+        "content_type": "movie",
+    }
+
+
+def _build_tv_content(show: dict, genre_map: dict[int, str]) -> dict:
+    poster_path = show.get("poster_path")
+    return {
+        "title": show.get("name"),
+        "genre": [genre_map.get(gid, "") for gid in show.get("genre_ids", [])],
+        "episode_run_time": _get_episode_run_time(show["id"]),
+        "poster_url": f"{TMDB_IMAGE_BASE_URL}{poster_path}" if poster_path else None,
+        "overview": show.get("overview"),
+        "content_type": "tv",
+    }
+
+
 def get_netflix_movies(count: int = 50) -> list[dict]:
     results = _discover_pages("movie", count)
-
     genre_map = _get_movie_genre_map()
-
-    contents = []
-    for movie in results:
-        poster_path = movie.get("poster_path")
-        contents.append(
-            {
-                "title": movie.get("title"),
-                "genre": [genre_map.get(gid, "") for gid in movie.get("genre_ids", [])],
-                "runtime": _get_runtime(movie["id"]),
-                "poster_url": f"{TMDB_IMAGE_BASE_URL}{poster_path}" if poster_path else None,
-                "overview": movie.get("overview"),
-                "content_type": "movie",
-            }
-        )
-
-    return contents
+    return [_build_movie_content(movie, genre_map) for movie in results]
 
 
 def get_netflix_tv(count: int = 50) -> list[dict]:
     results = _discover_pages("tv", count)
-
     genre_map = _get_tv_genre_map()
+    return [_build_tv_content(show, genre_map) for show in results]
+
+
+def _search_movie(query: str) -> dict | None:
+    response = requests.get(
+        f"{TMDB_BASE_URL}/search/movie",
+        params={"api_key": TMDB_API_KEY, "query": query, "language": "ko-KR"},
+        timeout=10,
+    )
+    response.raise_for_status()
+    results = response.json().get("results", [])
+    return results[0] if results else None
+
+
+def _search_tv(query: str) -> dict | None:
+    response = requests.get(
+        f"{TMDB_BASE_URL}/search/tv",
+        params={"api_key": TMDB_API_KEY, "query": query, "language": "ko-KR"},
+        timeout=10,
+    )
+    response.raise_for_status()
+    results = response.json().get("results", [])
+    return results[0] if results else None
+
+
+def get_metadata_for_titles(titles: list[dict]) -> list[dict]:
+    """Look up TMDB metadata for entries like those from
+    netflix_top10.get_netflix_top10_titles() - each a dict with at least
+    "title" and "content_type" ("movie" or "tv"). Titles with no TMDB match
+    are skipped.
+    """
+    movie_genre_map = _get_movie_genre_map()
+    tv_genre_map = _get_tv_genre_map()
 
     contents = []
-    for show in results:
-        poster_path = show.get("poster_path")
-        contents.append(
-            {
-                "title": show.get("name"),
-                "genre": [genre_map.get(gid, "") for gid in show.get("genre_ids", [])],
-                "episode_run_time": _get_episode_run_time(show["id"]),
-                "poster_url": f"{TMDB_IMAGE_BASE_URL}{poster_path}" if poster_path else None,
-                "overview": show.get("overview"),
-                "content_type": "tv",
-            }
-        )
+    for item in titles:
+        query = item.get("title")
+        content_type = item.get("content_type")
+        if not query or content_type not in ("movie", "tv"):
+            continue
+
+        if content_type == "movie":
+            match = _search_movie(query)
+            if match is None:
+                continue
+            contents.append(_build_movie_content(match, movie_genre_map))
+        else:
+            match = _search_tv(query)
+            if match is None:
+                continue
+            contents.append(_build_tv_content(match, tv_genre_map))
 
     return contents

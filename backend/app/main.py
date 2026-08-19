@@ -5,9 +5,10 @@ from pydantic import BaseModel, Field
 from app.db import supabase
 from app.services.analysis import analyze_sentiment, extract_keywords
 from app.services.naver import search_naver_blog
+from app.services.netflix_top10 import get_netflix_top10_titles
 from app.services.scoring import calculate_fit_scores
 from app.services.storage import save_to_db
-from app.services.tmdb import get_netflix_movies, get_netflix_tv
+from app.services.tmdb import get_metadata_for_titles, get_netflix_movies, get_netflix_tv
 
 app = FastAPI(title="OTT Situation Picker API")
 
@@ -37,7 +38,15 @@ def get_reviews(movie_title: str):
 
 @app.get("/api/contents-with-reviews")
 def get_contents_with_reviews():
-    contents = get_netflix_movies() + get_netflix_tv()
+    top10_contents = get_metadata_for_titles(get_netflix_top10_titles())
+    top10_titles = {content["title"] for content in top10_contents}
+
+    discover_contents = get_netflix_movies(count=30) + get_netflix_tv(count=30)
+    deduped_discover = [
+        content for content in discover_contents if content["title"] not in top10_titles
+    ]
+
+    contents = top10_contents + deduped_discover
 
     for content in contents:
         content["reviews"] = search_naver_blog(content["title"])
