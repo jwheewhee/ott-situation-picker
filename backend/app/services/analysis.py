@@ -1,6 +1,5 @@
 import json
 import os
-import re
 
 from konlpy.tag import Okt
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -109,119 +108,6 @@ def convert_to_star_rating(sentiment_score: dict) -> int:
             return rating
 
     return 1
-
-
-def analyze_sentiment_per_review(review_text: str) -> dict:
-    sentiment_score = analyze_sentiment([review_text])
-    star_rating = convert_to_star_rating(sentiment_score)
-    return {**sentiment_score, "star_rating": star_rating}
-
-
-_HASHTAG_RE = re.compile(r"#\S+")
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?\n])\s+")
-_ZERO_WIDTH_RE = re.compile("[​﻿]")
-_WHITESPACE_RE = re.compile(r"\s+")
-
-_OPINION_KEYWORDS = [
-    "좋았다", "별로", "추천", "몰입", "재밌", "지루", "실망",
-    "인생영화", "꿀잼", "노잼", "아쉽", "만족",
-]
-
-_AD_WIDGET_TOKENS = ["728x90", "반응형", "LIST", "SMALL"]
-_CCL_PHRASES = ["저작자표시", "비영리", "변경금지", "(새창열림)"]
-_TRAILING_SECTION_MARKERS = ["카테고리의 다른 글", "관련글", "태그"]
-_BUSINESS_INFO_MARKERS = ["사업자 정보 표시", "사업자 등록번호", "통신판매신고번호"]
-
-_AD_WIDGET_RE = re.compile("|".join(re.escape(token) for token in _AD_WIDGET_TOKENS))
-_CCL_RE = re.compile("|".join(re.escape(phrase) for phrase in _CCL_PHRASES))
-_DATE_LIST_ITEM_RE = re.compile(r"\(\d+\)\s*\d{4}\.\d{2}\.\d{2}")
-
-_RELEVANCE_MIN_MENTIONS = 1
-_MAX_SNIPPET_TOTAL_LENGTH = 280
-_MIN_SHORT_TITLE_LENGTH = 5
-_GENERIC_FRANCHISE_WORDS = {"스파이더맨", "마블", "디즈니", "픽사", "DC"}
-
-
-def _title_candidates(content_title: str) -> list[str]:
-    candidates = [content_title]
-
-    # TV titles often carry a season/subtitle after a colon (e.g. "브레이킹
-    # 배드: 시즌1"); the part before the colon is usually how the series is
-    # actually referred to in blog posts. But a short_title that's too short
-    # or a bare franchise name ("스파이더맨", "마블") matches far too many
-    # unrelated posts, so those fall back to requiring the full title.
-    short_title = content_title.split(":")[0].strip()
-    if (
-        short_title
-        and short_title != content_title
-        and len(short_title) >= _MIN_SHORT_TITLE_LENGTH
-        and short_title not in _GENERIC_FRANCHISE_WORDS
-    ):
-        candidates.append(short_title)
-
-    return candidates
-
-
-def _strip_boilerplate(full_text: str) -> str:
-    text = full_text
-
-    cutoff_positions = [pos for pos in (text.find(marker) for marker in _TRAILING_SECTION_MARKERS) if pos != -1]
-    if cutoff_positions:
-        text = text[: min(cutoff_positions)]
-
-    kept_paragraphs = [
-        paragraph
-        for paragraph in text.split("\n")
-        if not any(marker in paragraph for marker in _BUSINESS_INFO_MARKERS)
-        and not _DATE_LIST_ITEM_RE.search(paragraph)
-    ]
-    text = "\n".join(kept_paragraphs)
-
-    text = _AD_WIDGET_RE.sub("", text)
-    text = _CCL_RE.sub("", text)
-
-    return text
-
-
-def extract_opinion_sentences(
-    full_text: str, content_title: str = "", max_sentences: int = 2
-) -> list[str]:
-    if not full_text:
-        return []
-
-    cleaned_text = _strip_boilerplate(full_text)
-
-    if content_title:
-        candidates = _title_candidates(content_title)
-        mention_count = max(cleaned_text.count(candidate) for candidate in candidates)
-        if mention_count < _RELEVANCE_MIN_MENTIONS:
-            return []
-
-    without_hashtags = _HASHTAG_RE.sub("", cleaned_text)
-    raw_sentences = _SENTENCE_SPLIT_RE.split(without_hashtags)
-    sentences = [
-        _WHITESPACE_RE.sub(" ", _ZERO_WIDTH_RE.sub("", s)).strip() for s in raw_sentences
-    ]
-    sentences = [s for s in sentences if s]
-
-    opinion_sentences = [
-        sentence
-        for sentence in sentences
-        if any(keyword in sentence for keyword in _OPINION_KEYWORDS)
-    ]
-
-    selected: list[str] = []
-    total_length = 0
-    for sentence in opinion_sentences:
-        if len(selected) >= max_sentences:
-            break
-        extra_length = len(sentence) + (1 if selected else 0)
-        if total_length + extra_length > _MAX_SNIPPET_TOTAL_LENGTH:
-            break
-        selected.append(sentence)
-        total_length += extra_length
-
-    return selected
 
 
 def extract_keywords(reviews: list[str], top_n: int = 5) -> list[str]:

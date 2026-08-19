@@ -1,6 +1,12 @@
+import concurrent.futures
+
 from app.db import supabase
-from app.services.analysis import analyze_sentiment_per_review, convert_to_star_rating, extract_opinion_sentences
+from app.services.analysis import convert_to_star_rating
+from app.services.llm_review import process_review_with_llm
 from app.services.naver import fetch_blog_full_text
+
+_MAX_CONCURRENT_REVIEWS = 6
+_TARGET_SAVED_REVIEWS_PER_CONTENT = 12
 
 
 def _effective_runtime(content: dict) -> int | None:
@@ -8,6 +14,46 @@ def _effective_runtime(content: dict) -> int | None:
     if runtime is not None:
         return runtime
     return content.get("episode_run_time")
+
+
+def _process_review(review: dict, content_title: str) -> dict | None:
+    full_text = fetch_blog_full_text(review.get("link", ""))
+    llm_result = process_review_with_llm(full_text, content_title)
+    if not llm_result["is_relevant"]:
+        return None
+
+    return {
+        "title": review.get("title"),
+        "description": review.get("description"),
+        "star_rating": llm_result["star_rating"],
+        "summary": llm_result["summary"],
+    }
+
+
+def _collect_review_rows(content_id: int, content_title: str, reviews: list[dict]) -> list[dict]:
+    if not reviews:
+        return []
+
+    collected: list[dict] = []
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=_MAX_CONCURRENT_REVIEWS)
+
+    try:
+        futures = {executor.submit(_process_review, review, content_title) for review in reviews}
+
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result is not None:
+                collected.append({"content_id": content_id, **result})
+                if len(collected) >= _TARGET_SAVED_REVIEWS_PER_CONTENT:
+                    # Cancel candidates that haven't started yet; already
+                    # in-flight calls (up to _MAX_CONCURRENT_REVIEWS - 1)
+                    # finish in the background but their results are
+                    # discarded.
+                    break
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    return collected[:_TARGET_SAVED_REVIEWS_PER_CONTENT]
 
 
 def _delete_stale_content(current_titles: set[str]) -> int:
@@ -98,23 +144,9 @@ def save_to_db(contents: list[dict]) -> dict:
                 }
             )
 
-        for review in content.get("reviews", []):
-            full_text = fetch_blog_full_text(review.get("link", ""))
-            opinion_sentences = extract_opinion_sentences(full_text, content["title"])
-            if not opinion_sentences:
-                continue
-
-            review_text = f"{review.get('title', '')} {review.get('description', '')}".strip()
-            review_sentiment = analyze_sentiment_per_review(review_text)
-            review_rows.append(
-                {
-                    "content_id": content_id,
-                    "title": review.get("title"),
-                    "description": review.get("description"),
-                    "star_rating": review_sentiment["star_rating"],
-                    "summary": " ".join(opinion_sentences),
-                }
-            )
+        review_rows.extend(
+            _collect_review_rows(content_id, content["title"], content.get("reviews", []))
+        )
 
     if content_situation_rows:
         supabase.table("content_situation").upsert(

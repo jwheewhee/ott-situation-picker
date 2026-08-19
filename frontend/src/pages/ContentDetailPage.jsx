@@ -4,6 +4,7 @@ import { createUserReview, getContentDetail } from '../api'
 import { formatDate, renderStars, sentimentClass } from '../utils'
 
 const MIN_REVIEW_TEXT_LENGTH = 5
+const REVIEW_PAGE_SIZE = 4
 
 function StarPicker({ value, onChange }) {
   return (
@@ -98,11 +99,15 @@ function ContentDetailPage() {
   const [content, setContent] = useState(null)
   const [userReviews, setUserReviews] = useState([])
   const [status, setStatus] = useState('loading')
+  const [visibleBlogReviewCount, setVisibleBlogReviewCount] = useState(REVIEW_PAGE_SIZE)
+  const [visibleUserReviewCount, setVisibleUserReviewCount] = useState(REVIEW_PAGE_SIZE)
 
   useEffect(() => {
     let cancelled = false
 
     setStatus('loading')
+    setVisibleBlogReviewCount(REVIEW_PAGE_SIZE)
+    setVisibleUserReviewCount(REVIEW_PAGE_SIZE)
     getContentDetail(id)
       .then((data) => {
         if (cancelled) return
@@ -210,16 +215,33 @@ function ContentDetailPage() {
       <section className="review-section">
         <h2>블로그 후기</h2>
         {content.review_snippets?.length > 0 ? (
-          <div className="review-quote-grid">
-            {content.review_snippets.map((snippet, index) => (
-              <blockquote key={index} className="review-quote-card">
-                {snippet.star_rating != null && (
-                  <span className="review-quote-rating">{renderStars(snippet.star_rating)}</span>
-                )}
-                <p className="review-quote-text">“{snippet.summary}”</p>
-              </blockquote>
-            ))}
-          </div>
+          <>
+            <div className="review-quote-grid">
+              {content.review_snippets.slice(0, visibleBlogReviewCount).map((snippet, index) => (
+                <blockquote key={index} className="review-quote-card">
+                  {snippet.star_rating != null && (
+                    <span className="review-quote-rating">{renderStars(snippet.star_rating)}</span>
+                  )}
+                  <p className="review-quote-text">“{snippet.summary}”</p>
+                </blockquote>
+              ))}
+            </div>
+            {visibleBlogReviewCount < content.review_snippets.length && (
+              <button
+                type="button"
+                className="review-more-button"
+                onClick={() =>
+                  setVisibleBlogReviewCount((prev) =>
+                    Math.min(prev + REVIEW_PAGE_SIZE, content.review_snippets.length)
+                  )
+                }
+              >
+                리뷰 더보기 (+
+                {Math.min(REVIEW_PAGE_SIZE, content.review_snippets.length - visibleBlogReviewCount)}
+                개)
+              </button>
+            )}
+          </>
         ) : (
           <p className="empty-review-message">아직 등록된 후기가 없어요.</p>
         )}
@@ -234,18 +256,34 @@ function ContentDetailPage() {
         />
 
         {userReviews.length > 0 ? (
-          <div className="user-review-grid">
-            {userReviews.map((review, index) => (
-              <div key={index} className="user-review-card">
-                <div className="user-review-card-header">
-                  <span className="user-review-nickname">{review.nickname}</span>
-                  <span className="user-review-card-rating">{renderStars(review.star_rating)}</span>
+          <>
+            <div className="user-review-grid">
+              {userReviews.slice(0, visibleUserReviewCount).map((review, index) => (
+                <div key={index} className="user-review-card">
+                  <div className="user-review-card-header">
+                    <span className="user-review-nickname">{review.nickname}</span>
+                    <span className="user-review-card-rating">{renderStars(review.star_rating)}</span>
+                  </div>
+                  <p className="user-review-text">{review.review_text}</p>
+                  <span className="user-review-date">{formatDate(review.created_at)}</span>
                 </div>
-                <p className="user-review-text">{review.review_text}</p>
-                <span className="user-review-date">{formatDate(review.created_at)}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            {visibleUserReviewCount < userReviews.length && (
+              <button
+                type="button"
+                className="review-more-button"
+                onClick={() =>
+                  setVisibleUserReviewCount((prev) =>
+                    Math.min(prev + REVIEW_PAGE_SIZE, userReviews.length)
+                  )
+                }
+              >
+                리뷰 더보기 (+{Math.min(REVIEW_PAGE_SIZE, userReviews.length - visibleUserReviewCount)}
+                개)
+              </button>
+            )}
+          </>
         ) : (
           <p className="empty-review-message">아직 시청자 리뷰가 없어요. 첫 리뷰를 남겨보세요!</p>
         )}

@@ -111,7 +111,7 @@ def _fetch_review_tags_by_content_id(content_ids: list[int], limit_per_content: 
 
 
 def _fetch_review_snippets_by_content_id(
-    content_ids: list[int], limit_per_content: int = 5
+    content_ids: list[int], limit_per_content: int = 3
 ) -> dict[int, list[str]]:
     if not content_ids:
         return {}
@@ -135,12 +135,19 @@ def _fetch_review_snippets_by_content_id(
     return grouped
 
 
-def _fetch_review_snippets_with_rating(content_id: int, limit: int = 5) -> list[dict]:
+def _fetch_content_ids_with_reviews(content_ids: list[int]) -> set[int]:
+    if not content_ids:
+        return set()
+
+    rows = supabase.table("review").select("content_id").in_("content_id", content_ids).execute().data
+    return {row["content_id"] for row in rows}
+
+
+def _fetch_review_snippets_with_rating(content_id: int) -> list[dict]:
     rows = (
         supabase.table("review")
         .select("description, summary, star_rating")
         .eq("content_id", content_id)
-        .limit(limit)
         .execute()
         .data
     )
@@ -170,11 +177,16 @@ def get_situation_contents(situation_name: str):
     content_ids = [row["content"]["id"] for row in rows if row["content"]]
     tags_by_content_id = _fetch_review_tags_by_content_id(content_ids)
     snippets_by_content_id = _fetch_review_snippets_by_content_id(content_ids)
+    content_ids_with_reviews = _fetch_content_ids_with_reviews(content_ids)
 
     results = []
     for row in rows:
         content = row["content"]
         if content is None:
+            continue
+        if not content.get("poster_url"):
+            continue
+        if content["id"] not in content_ids_with_reviews:
             continue
 
         tags = tags_by_content_id.get(content["id"], {"keywords": [], "sentiment_label": None})

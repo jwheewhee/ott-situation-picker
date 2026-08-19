@@ -16,8 +16,9 @@ NAVER_BLOG_SEARCH_URL = "https://openapi.naver.com/v1/search/blog.json"
 _TAG_RE = re.compile(r"<[^>]+>")
 
 _IRRELEVANT_KEYWORDS = ["방탈출", "카페", "체험", "리마스터링"]
+_URL_RE = re.compile(r"https?://")
 
-_QUERY_SUFFIXES = ["영화 후기", "리뷰"]
+_QUERY_SUFFIXES = ["영화 후기", "리뷰", "평점", "감상"]
 
 
 def _clean_text(text: str) -> str:
@@ -26,7 +27,16 @@ def _clean_text(text: str) -> str:
 
 def _is_relevant(item: dict) -> bool:
     text = f"{item['title']} {item['description']}"
-    return not any(keyword in text for keyword in _IRRELEVANT_KEYWORDS)
+    if any(keyword in text for keyword in _IRRELEVANT_KEYWORDS):
+        return False
+
+    # A link dropped in the description is usually promo/affiliate content
+    # (다른 사이트 홍보, 협찬 등) - skip it before it ever reaches the LLM
+    # call to save on API cost.
+    if _URL_RE.search(item["description"]):
+        return False
+
+    return True
 
 
 def _search_naver_blog_once(query: str, count: int) -> list[dict]:
@@ -56,7 +66,7 @@ def _search_naver_blog_once(query: str, count: int) -> list[dict]:
     ]
 
 
-def search_naver_blog(movie_title: str, count: int = 10) -> list[dict]:
+def search_naver_blog(movie_title: str, count: int = 15) -> list[dict]:
     all_items: list[dict] = []
     for suffix in _QUERY_SUFFIXES:
         all_items.extend(_search_naver_blog_once(f"{movie_title} {suffix}", count))
