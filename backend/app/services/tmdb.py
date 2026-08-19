@@ -61,20 +61,42 @@ def _get_episode_run_time(tv_id: int) -> int | None:
     return last_episode.get("runtime")
 
 
-def get_netflix_movies(count: int = 10) -> list[dict]:
-    response = requests.get(
-        f"{TMDB_BASE_URL}/discover/movie",
-        params={
-            "api_key": TMDB_API_KEY,
-            "with_watch_providers": NETFLIX_PROVIDER_ID,
-            "watch_region": "KR",
-            "sort_by": "popularity.desc",
-            "language": "ko-KR",
-        },
-        timeout=10,
-    )
-    response.raise_for_status()
-    results = response.json().get("results", [])[:count]
+def _discover_pages(media_type: str, count: int) -> list[dict]:
+    results: list[dict] = []
+    page = 1
+
+    while len(results) < count:
+        response = requests.get(
+            f"{TMDB_BASE_URL}/discover/{media_type}",
+            params={
+                "api_key": TMDB_API_KEY,
+                "with_watch_providers": NETFLIX_PROVIDER_ID,
+                "watch_region": "KR",
+                "sort_by": "popularity.desc",
+                "vote_count.gte": 100,
+                "language": "ko-KR",
+                "page": page,
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        page_results = data.get("results", [])
+        if not page_results:
+            break
+        results.extend(page_results)
+
+        total_pages = data.get("total_pages", page)
+        if page >= total_pages:
+            break
+        page += 1
+
+    return results[:count]
+
+
+def get_netflix_movies(count: int = 50) -> list[dict]:
+    results = _discover_pages("movie", count)
 
     genre_map = _get_movie_genre_map()
 
@@ -95,20 +117,8 @@ def get_netflix_movies(count: int = 10) -> list[dict]:
     return contents
 
 
-def get_netflix_tv(count: int = 10) -> list[dict]:
-    response = requests.get(
-        f"{TMDB_BASE_URL}/discover/tv",
-        params={
-            "api_key": TMDB_API_KEY,
-            "with_watch_providers": NETFLIX_PROVIDER_ID,
-            "watch_region": "KR",
-            "sort_by": "popularity.desc",
-            "language": "ko-KR",
-        },
-        timeout=10,
-    )
-    response.raise_for_status()
-    results = response.json().get("results", [])[:count]
+def get_netflix_tv(count: int = 50) -> list[dict]:
+    results = _discover_pages("tv", count)
 
     genre_map = _get_tv_genre_map()
 

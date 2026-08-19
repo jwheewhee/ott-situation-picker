@@ -10,6 +10,33 @@ def _effective_runtime(content: dict) -> int | None:
     return content.get("episode_run_time")
 
 
+def _delete_stale_content(current_titles: set[str]) -> int:
+    all_content = supabase.table("content").select("id, title").execute().data
+    stale_ids = [row["id"] for row in all_content if row["title"] not in current_titles]
+
+    if not stale_ids:
+        return 0
+
+    # Never delete content that a real person left a review on, even if it
+    # dropped out of this sync's result set - user_review cascades on
+    # content delete, and that data can't be recomputed like the scraped
+    # review/review_tag rows can.
+    reviewed_ids = {
+        row["content_id"]
+        for row in supabase.table("user_review")
+        .select("content_id")
+        .in_("content_id", stale_ids)
+        .execute()
+        .data
+    }
+    deletable_ids = [cid for cid in stale_ids if cid not in reviewed_ids]
+
+    if deletable_ids:
+        supabase.table("content").delete().in_("id", deletable_ids).execute()
+
+    return len(deletable_ids)
+
+
 def save_to_db(contents: list[dict]) -> dict:
     content_rows = [
         {
@@ -28,6 +55,8 @@ def save_to_db(contents: list[dict]) -> dict:
         supabase.table("content").upsert(content_rows, on_conflict="title").execute().data
     )
     content_id_by_title = {row["title"]: row["id"] for row in upserted_content}
+
+    contents_deleted = _delete_stale_content(set(content_id_by_title.keys()))
 
     situations = supabase.table("situation").select("id, name").execute().data
     situation_id_by_name = {row["name"]: row["id"] for row in situations}
@@ -100,6 +129,7 @@ def save_to_db(contents: list[dict]) -> dict:
 
     return {
         "contents_saved": len(upserted_content),
+        "contents_deleted": contents_deleted,
         "fit_scores_saved": len(content_situation_rows),
         "review_tags_saved": len(review_tag_rows),
         "reviews_saved": len(review_rows),

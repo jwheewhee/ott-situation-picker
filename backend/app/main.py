@@ -152,6 +152,7 @@ def get_situation_contents(situation_name: str):
         supabase.table("content_situation")
         .select("fit_score, content(id, title, genre, poster_url, runtime, star_rating)")
         .eq("situation_id", situation["id"])
+        .gte("fit_score", 60)
         .order("fit_score", desc=True)
         .execute()
         .data
