@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from app.db import supabase
 from app.services.analysis import analyze_sentiment, extract_keywords
@@ -205,9 +206,45 @@ def get_content_detail(content_id: int):
 
     review_snippets = _fetch_review_snippets_with_rating(content_id)
 
+    user_reviews = (
+        supabase.table("user_review")
+        .select("nickname, review_text, star_rating, created_at")
+        .eq("content_id", content_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+
     return {
         **content,
         "review_tags": review_tags,
         "fit_scores": fit_scores,
         "review_snippets": review_snippets,
+        "user_reviews": user_reviews,
     }
+
+
+class UserReviewCreate(BaseModel):
+    nickname: str | None = None
+    review_text: str = Field(min_length=5)
+    star_rating: int = Field(ge=1, le=5)
+
+
+@app.post("/api/contents/{content_id}/reviews")
+def create_user_review(content_id: int, payload: UserReviewCreate):
+    content = _execute_maybe_single(supabase.table("content").select("id").eq("id", content_id))
+    if content is None:
+        raise HTTPException(status_code=404, detail="content not found")
+
+    row = {
+        "content_id": content_id,
+        "review_text": payload.review_text,
+        "star_rating": payload.star_rating,
+    }
+
+    nickname = (payload.nickname or "").strip()
+    if nickname:
+        row["nickname"] = nickname
+
+    result = supabase.table("user_review").insert(row).execute()
+    return result.data[0]

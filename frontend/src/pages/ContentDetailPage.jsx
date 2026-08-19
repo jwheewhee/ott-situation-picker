@@ -1,12 +1,102 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getContentDetail } from '../api'
-import { renderStars, sentimentClass } from '../utils'
+import { createUserReview, getContentDetail } from '../api'
+import { formatDate, renderStars, sentimentClass } from '../utils'
+
+const MIN_REVIEW_TEXT_LENGTH = 5
+
+function StarPicker({ value, onChange }) {
+  return (
+    <div className="star-picker" role="radiogroup" aria-label="별점 선택">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          className="star-picker-star"
+          aria-label={`${star}점`}
+          aria-pressed={value >= star}
+          onClick={() => onChange(star)}
+        >
+          {value >= star ? '★' : '☆'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function UserReviewForm({ contentId, onCreated }) {
+  const [nickname, setNickname] = useState('')
+  const [starRating, setStarRating] = useState(0)
+  const [reviewText, setReviewText] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState(null)
+
+  const isTextValid = reviewText.trim().length >= MIN_REVIEW_TEXT_LENGTH
+  const isRatingValid = starRating >= 1
+  const canSubmit = isTextValid && isRatingValid && !submitting
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    if (!canSubmit) return
+
+    setSubmitting(true)
+    setFormError(null)
+
+    try {
+      const newReview = await createUserReview(contentId, {
+        nickname: nickname.trim() || undefined,
+        review_text: reviewText.trim(),
+        star_rating: starRating,
+      })
+      onCreated(newReview)
+      setNickname('')
+      setStarRating(0)
+      setReviewText('')
+    } catch {
+      setFormError('리뷰 등록에 실패했어요. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form className="user-review-form" onSubmit={handleSubmit}>
+      <input
+        type="text"
+        className="user-review-nickname-input"
+        placeholder="익명"
+        value={nickname}
+        onChange={(event) => setNickname(event.target.value)}
+        maxLength={30}
+      />
+
+      <StarPicker value={starRating} onChange={setStarRating} />
+
+      <textarea
+        className="user-review-textarea"
+        placeholder="이 작품에 대한 감상을 남겨주세요 (최소 5자)"
+        value={reviewText}
+        onChange={(event) => setReviewText(event.target.value)}
+        rows={3}
+      />
+      <p className="user-review-hint">
+        최소 {MIN_REVIEW_TEXT_LENGTH}자 이상 입력해주세요. ({reviewText.trim().length}자)
+      </p>
+
+      {formError && <p className="user-review-error">{formError}</p>}
+
+      <button type="submit" className="user-review-submit" disabled={!canSubmit}>
+        {submitting ? '등록 중...' : '등록'}
+      </button>
+    </form>
+  )
+}
 
 function ContentDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [content, setContent] = useState(null)
+  const [userReviews, setUserReviews] = useState([])
   const [status, setStatus] = useState('loading')
 
   useEffect(() => {
@@ -17,6 +107,7 @@ function ContentDetailPage() {
       .then((data) => {
         if (cancelled) return
         setContent(data)
+        setUserReviews(data.user_reviews ?? [])
         setStatus('done')
       })
       .catch(() => {
@@ -117,7 +208,7 @@ function ContentDetailPage() {
       </div>
 
       <section className="review-section">
-        <h2>실제 이용자 후기</h2>
+        <h2>블로그 후기</h2>
         {content.review_snippets?.length > 0 ? (
           <div className="review-quote-grid">
             {content.review_snippets.map((snippet, index) => (
@@ -131,6 +222,32 @@ function ContentDetailPage() {
           </div>
         ) : (
           <p className="empty-review-message">아직 등록된 후기가 없어요.</p>
+        )}
+      </section>
+
+      <section className="review-section">
+        <h2>시청자 리뷰</h2>
+
+        <UserReviewForm
+          contentId={id}
+          onCreated={(newReview) => setUserReviews((prev) => [newReview, ...prev])}
+        />
+
+        {userReviews.length > 0 ? (
+          <div className="user-review-grid">
+            {userReviews.map((review, index) => (
+              <div key={index} className="user-review-card">
+                <div className="user-review-card-header">
+                  <span className="user-review-nickname">{review.nickname}</span>
+                  <span className="user-review-card-rating">{renderStars(review.star_rating)}</span>
+                </div>
+                <p className="user-review-text">{review.review_text}</p>
+                <span className="user-review-date">{formatDate(review.created_at)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="empty-review-message">아직 시청자 리뷰가 없어요. 첫 리뷰를 남겨보세요!</p>
         )}
       </section>
     </div>
