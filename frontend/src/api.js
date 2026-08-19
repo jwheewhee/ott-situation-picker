@@ -10,7 +10,9 @@ async function request(path, options) {
     } catch {
       // response had no JSON body; keep the generic message
     }
-    throw new Error(detail)
+    const error = new Error(detail)
+    error.status = response.status
+    throw error
   }
   return response.json()
 }

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createUserReview, getContentDetail } from '../api'
+import { SofaDogIcon, TvIcon } from '../components/Mascots'
 import { formatDate, renderStars, sentimentClass } from '../utils'
 
 const MIN_REVIEW_TEXT_LENGTH = 5
 const REVIEW_PAGE_SIZE = 4
+const TOAST_DURATION_MS = 2500
 
 function StarPicker({ value, onChange }) {
   return (
@@ -31,10 +33,17 @@ function UserReviewForm({ contentId, onCreated }) {
   const [reviewText, setReviewText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState(null)
+  const [showToast, setShowToast] = useState(false)
 
   const isTextValid = reviewText.trim().length >= MIN_REVIEW_TEXT_LENGTH
   const isRatingValid = starRating >= 1
   const canSubmit = isTextValid && isRatingValid && !submitting
+
+  useEffect(() => {
+    if (!showToast) return
+    const timer = setTimeout(() => setShowToast(false), TOAST_DURATION_MS)
+    return () => clearTimeout(timer)
+  }, [showToast])
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -53,6 +62,7 @@ function UserReviewForm({ contentId, onCreated }) {
       setNickname('')
       setStarRating(0)
       setReviewText('')
+      setShowToast(true)
     } catch {
       setFormError('리뷰 등록에 실패했어요. 잠시 후 다시 시도해주세요.')
     } finally {
@@ -62,6 +72,7 @@ function UserReviewForm({ contentId, onCreated }) {
 
   return (
     <form className="user-review-form" onSubmit={handleSubmit}>
+      {showToast && <div className="toast" role="status">리뷰가 등록됐어요!</div>}
       <input
         type="text"
         className="user-review-nickname-input"
@@ -115,8 +126,9 @@ function ContentDetailPage() {
         setUserReviews(data.user_reviews ?? [])
         setStatus('done')
       })
-      .catch(() => {
-        if (!cancelled) setStatus('error')
+      .catch((err) => {
+        if (cancelled) return
+        setStatus(err?.status === 404 ? 'not-found' : 'error')
       })
 
     return () => {
@@ -132,6 +144,18 @@ function ContentDetailPage() {
     )
   }
 
+  if (status === 'not-found') {
+    return (
+      <div className="page not-found-page">
+        <TvIcon size={200} />
+        <p className="not-found-message">콘텐츠를 찾을 수 없어요</p>
+        <button type="button" className="not-found-home-button" onClick={() => navigate('/')}>
+          메인으로 돌아가기
+        </button>
+      </div>
+    )
+  }
+
   if (status === 'error' || !content) {
     return (
       <div className="page">
@@ -142,6 +166,10 @@ function ContentDetailPage() {
       </div>
     )
   }
+
+  const hasNoBlogReviews = !content.review_snippets || content.review_snippets.length === 0
+  const hasNoUserReviews = userReviews.length === 0
+  const hasNoReviewsAtAll = hasNoBlogReviews && hasNoUserReviews
 
   return (
     <div className="page">
@@ -182,7 +210,15 @@ function ContentDetailPage() {
 
           <p className="overview">{content.overview}</p>
 
-          <h2>상황별 적합도</h2>
+          <h2 className="fit-score-heading">
+            상황별 적합도
+            <span className="info-tooltip-wrapper" tabIndex={0}>
+              <span className="info-tooltip-icon" aria-label="적합도 설명">ⓘ</span>
+              <span className="info-tooltip-bubble">
+                러닝타임, 장르, 리뷰 감성분석을 종합해 계산된 점수예요
+              </span>
+            </span>
+          </h2>
           <div className="fit-score-list">
             {Object.entries(content.fit_scores ?? {}).map(([situationName, score]) => (
               <div key={situationName} className="fit-score-row">
@@ -214,7 +250,12 @@ function ContentDetailPage() {
 
       <section className="review-section">
         <h2>블로그 후기</h2>
-        {content.review_snippets?.length > 0 ? (
+        {hasNoReviewsAtAll ? (
+          <div className="empty-reviews-mascot">
+            <SofaDogIcon size={96} />
+            <p>아직 등록된 리뷰가 없어요. 첫 리뷰를 남겨보세요!</p>
+          </div>
+        ) : content.review_snippets?.length > 0 ? (
           <>
             <div className="review-quote-grid">
               {content.review_snippets.slice(0, visibleBlogReviewCount).map((snippet, index) => (
@@ -250,10 +291,15 @@ function ContentDetailPage() {
       <section className="review-section">
         <h2>시청자 리뷰</h2>
 
-        <UserReviewForm
-          contentId={id}
-          onCreated={(newReview) => setUserReviews((prev) => [newReview, ...prev])}
-        />
+        <div className="user-review-panel">
+          <UserReviewForm
+            contentId={id}
+            onCreated={(newReview) => setUserReviews((prev) => [newReview, ...prev])}
+          />
+          <div className="user-review-mascot">
+            <SofaDogIcon size={180} />
+          </div>
+        </div>
 
         {userReviews.length > 0 ? (
           <>
@@ -285,7 +331,9 @@ function ContentDetailPage() {
             )}
           </>
         ) : (
-          <p className="empty-review-message">아직 시청자 리뷰가 없어요. 첫 리뷰를 남겨보세요!</p>
+          !hasNoReviewsAtAll && (
+            <p className="empty-review-message">아직 시청자 리뷰가 없어요. 첫 리뷰를 남겨보세요!</p>
+          )
         )}
       </section>
     </div>

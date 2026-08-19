@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getSituationContents } from '../api'
+import { TvIcon } from '../components/Mascots'
 import { sentimentClass } from '../utils'
 
 function SituationPage() {
@@ -35,7 +36,12 @@ function SituationPage() {
       </button>
       <h1>{situationName}</h1>
 
-      {status === 'loading' && <p className="message">불러오는 중...</p>}
+      {status === 'loading' && (
+        <div className="loading-mascot">
+          <TvIcon size={200} />
+          <p className="message">불러오는 중...</p>
+        </div>
+      )}
       {status === 'error' && <p className="message error">콘텐츠를 불러오지 못했습니다.</p>}
       {status === 'done' && contents.length === 0 && (
         <p className="message">추천할 콘텐츠가 없습니다.</p>
