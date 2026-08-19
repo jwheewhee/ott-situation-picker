@@ -94,17 +94,17 @@ def fetch_blog_full_text(url: str) -> str:
         for selector in _NAVER_CONTENT_SELECTORS:
             content = soup.select_one(selector)
             if content:
-                return content.get_text(separator=" ", strip=True)
+                return content.get_text(separator="\n", strip=True)
 
         return ""
 
     # Best-effort fallback for non-Naver blog platforms (e.g. Tistory).
     article = soup.find("article")
     if article:
-        return article.get_text(separator=" ", strip=True)
+        return article.get_text(separator="\n", strip=True)
 
     paragraphs = soup.find_all("p")
     if paragraphs:
-        return " ".join(p.get_text(separator=" ", strip=True) for p in paragraphs)
+        return "\n".join(p.get_text(separator=" ", strip=True) for p in paragraphs)
 
     return ""

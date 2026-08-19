@@ -360,6 +360,16 @@ h2 {
   color: var(--color-text);
 }
 
+.empty-review-message {
+  margin: 1rem 0 0;
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+
 @media (max-width: 640px) {
   .detail-layout {
     flex-direction: column;

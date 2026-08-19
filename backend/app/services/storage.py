@@ -71,7 +71,7 @@ def save_to_db(contents: list[dict]) -> dict:
 
         for review in content.get("reviews", []):
             full_text = fetch_blog_full_text(review.get("link", ""))
-            opinion_sentences = extract_opinion_sentences(full_text)
+            opinion_sentences = extract_opinion_sentences(full_text, content["title"])
             if not opinion_sentences:
                 continue
 

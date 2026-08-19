@@ -130,7 +130,7 @@ function ContentDetailPage() {
             ))}
           </div>
         ) : (
-          <p className="message">등록된 후기가 없습니다.</p>
+          <p className="empty-review-message">아직 등록된 후기가 없어요.</p>
         )}
       </section>
     </div>
