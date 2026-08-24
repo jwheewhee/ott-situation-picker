@@ -7,4 +7,4 @@ create table if not exists user_review (
     created_at timestamptz not null default now()
 );
 
-create index if not exists idx_user_review_content_id on user_review (content_id);
+create index if not exists i dx_user_review_content_id on user_review (content_id);

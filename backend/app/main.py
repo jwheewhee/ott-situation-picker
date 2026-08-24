@@ -1,3 +1,6 @@
+import os
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -10,11 +13,15 @@ from app.services.scoring import calculate_fit_scores
 from app.services.storage import save_to_db
 from app.services.tmdb import get_metadata_for_titles, get_netflix_movies, get_netflix_tv
 
+load_dotenv()
+
+ALLOWED_ORIGIN = os.getenv("ALLOWED_ORIGIN", "http://localhost:5177")
+
 app = FastAPI(title="OTT Situation Picker API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5177"],
+    allow_origins=[ALLOWED_ORIGIN],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
