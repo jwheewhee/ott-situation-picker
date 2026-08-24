@@ -1,3 +1,5 @@
+import { supabase } from './supabaseClient'
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
 async function request(path, options) {
@@ -17,6 +19,20 @@ async function request(path, options) {
   return response.json()
 }
 
+async function authorizedRequest(path, options = {}) {
+  const { data } = await supabase.auth.getSession()
+  const accessToken = data.session?.access_token
+
+  return request(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...options.headers,
+    },
+  })
+}
+
 export function getSituationContents(situationName) {
   return request(`/api/situations/${encodeURIComponent(situationName)}/contents`)
 }
@@ -26,9 +42,19 @@ export function getContentDetail(contentId) {
 }
 
 export function createUserReview(contentId, payload) {
-  return request(`/api/contents/${encodeURIComponent(contentId)}/reviews`, {
+  return authorizedRequest(`/api/contents/${encodeURIComponent(contentId)}/reviews`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getMyReviews() {
+  return authorizedRequest('/api/my/reviews')
+}
+
+export function updateProfile(payload) {
+  return authorizedRequest('/api/profile', {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   })
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { createUserReview, getContentDetail } from '../api'
+import { AvatarIcon } from '../components/AvatarPicker'
 import { SofaDogIcon, TvIcon } from '../components/Mascots'
 import { formatDate, renderStars, sentimentClass } from '../utils'
 
@@ -28,7 +29,6 @@ function StarPicker({ value, onChange }) {
 }
 
 function UserReviewForm({ contentId, onCreated }) {
-  const [nickname, setNickname] = useState('')
   const [starRating, setStarRating] = useState(0)
   const [reviewText, setReviewText] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -54,12 +54,10 @@ function UserReviewForm({ contentId, onCreated }) {
 
     try {
       const newReview = await createUserReview(contentId, {
-        nickname: nickname.trim() || undefined,
         review_text: reviewText.trim(),
         star_rating: starRating,
       })
       onCreated(newReview)
-      setNickname('')
       setStarRating(0)
       setReviewText('')
       setShowToast(true)
@@ -73,15 +71,6 @@ function UserReviewForm({ contentId, onCreated }) {
   return (
     <form className="user-review-form" onSubmit={handleSubmit}>
       {showToast && <div className="toast" role="status">리뷰가 등록됐어요!</div>}
-      <input
-        type="text"
-        className="user-review-nickname-input"
-        placeholder="익명"
-        value={nickname}
-        onChange={(event) => setNickname(event.target.value)}
-        maxLength={30}
-      />
-
       <StarPicker value={starRating} onChange={setStarRating} />
 
       <textarea
@@ -307,7 +296,10 @@ function ContentDetailPage() {
               {userReviews.slice(0, visibleUserReviewCount).map((review, index) => (
                 <div key={index} className="user-review-card">
                   <div className="user-review-card-header">
-                    <span className="user-review-nickname">{review.nickname}</span>
+                    <span className="user-review-identity">
+                      {review.avatar_id != null && <AvatarIcon avatarId={review.avatar_id} size={24} />}
+                      <span className="user-review-nickname">{review.nickname}</span>
+                    </span>
                     <span className="user-review-card-rating">{renderStars(review.star_rating)}</span>
                   </div>
                   <p className="user-review-text">{review.review_text}</p>

@@ -1,10 +1,12 @@
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from postgrest.exceptions import APIError
 from pydantic import BaseModel, Field
 
+from app.auth import get_current_user_id
 from app.db import supabase
 from app.services.analysis import analyze_sentiment, extract_keywords
 from app.services.naver import search_naver_blog
@@ -150,6 +152,14 @@ def _fetch_content_ids_with_reviews(content_ids: list[int]) -> set[int]:
     return {row["content_id"] for row in rows}
 
 
+def _fetch_profiles_by_user_ids(user_ids: list[str]) -> dict[str, int]:
+    if not user_ids:
+        return {}
+
+    rows = supabase.table("profiles").select("id, avatar_id").in_("id", user_ids).execute().data
+    return {row["id"]: row["avatar_id"] for row in rows}
+
+
 def _fetch_review_snippets_with_rating(content_id: int) -> list[dict]:
     rows = (
         supabase.table("review")
@@ -237,12 +247,18 @@ def get_content_detail(content_id: int):
 
     user_reviews = (
         supabase.table("user_review")
-        .select("nickname, review_text, star_rating, created_at")
+        .select("nickname, review_text, star_rating, created_at, user_id")
         .eq("content_id", content_id)
         .order("created_at", desc=True)
         .execute()
         .data
     )
+
+    avatar_by_user_id = _fetch_profiles_by_user_ids(
+        [row["user_id"] for row in user_reviews if row["user_id"]]
+    )
+    for row in user_reviews:
+        row["avatar_id"] = avatar_by_user_id.get(row["user_id"])
 
     return {
         **content,
@@ -254,26 +270,70 @@ def get_content_detail(content_id: int):
 
 
 class UserReviewCreate(BaseModel):
-    nickname: str | None = None
     review_text: str = Field(min_length=5)
     star_rating: int = Field(ge=1, le=5)
 
 
 @app.post("/api/contents/{content_id}/reviews")
-def create_user_review(content_id: int, payload: UserReviewCreate):
+def create_user_review(
+    content_id: int,
+    payload: UserReviewCreate,
+    user_id: str = Depends(get_current_user_id),
+):
     content = _execute_maybe_single(supabase.table("content").select("id").eq("id", content_id))
     if content is None:
         raise HTTPException(status_code=404, detail="content not found")
 
+    profile = _execute_maybe_single(
+        supabase.table("profiles").select("nickname, avatar_id").eq("id", user_id)
+    )
+    if profile is None:
+        raise HTTPException(status_code=404, detail="profile not found")
+
     row = {
         "content_id": content_id,
+        "user_id": user_id,
+        "nickname": profile["nickname"],
         "review_text": payload.review_text,
         "star_rating": payload.star_rating,
     }
 
-    nickname = (payload.nickname or "").strip()
-    if nickname:
-        row["nickname"] = nickname
-
     result = supabase.table("user_review").insert(row).execute()
+    return {**result.data[0], "avatar_id": profile["avatar_id"]}
+
+
+@app.get("/api/my/reviews")
+def get_my_reviews(user_id: str = Depends(get_current_user_id)):
+    rows = (
+        supabase.table("user_review")
+        .select("id, content_id, review_text, star_rating, created_at, content(title, poster_url)")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+    return rows
+
+
+class ProfileUpdate(BaseModel):
+    nickname: str = Field(min_length=1, max_length=30)
+
+
+@app.patch("/api/profile")
+def update_profile(payload: ProfileUpdate, user_id: str = Depends(get_current_user_id)):
+    try:
+        result = (
+            supabase.table("profiles")
+            .update({"nickname": payload.nickname.strip()})
+            .eq("id", user_id)
+            .execute()
+        )
+    except APIError as exc:
+        if exc.code == "23505":
+            raise HTTPException(status_code=409, detail="이미 사용중인 닉네임입니다.") from None
+        raise
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="profile not found")
+
     return result.data[0]

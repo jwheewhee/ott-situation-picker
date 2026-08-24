@@ -35,7 +35,7 @@ export function PopcornMascot({ size = 140 }) {
       <path d="M330 312 Q345 324 360 312" stroke="#2C2C2A" strokeWidth="3" fill="none" strokeLinecap="round" />
       <path d="M262 300 Q230 320 250 345" stroke="#F6F1E7" strokeWidth="16" fill="none" strokeLinecap="round" />
       <circle cx="255" cy="350" r="13" fill="#F6F1E7" />
-      <g transform="translate(232,323) rotate(-8)">
+      <g className="mascot-remote" transform="translate(232,323) rotate(-8)">
         <rect x="0" y="0" width="22" height="52" rx="8" fill="#2C2C2A" />
         <rect x="4" y="5" width="14" height="9" rx="2.5" fill="#4A4A47" />
         <circle cx="11" cy="22" r="2.8" fill="#E24B4A" />
