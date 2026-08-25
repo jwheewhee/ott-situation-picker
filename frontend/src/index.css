@@ -1090,8 +1090,8 @@ h2 {
   align-items: center;
   justify-content: center;
   background: var(--color-bg);
-  animation: splash-backdrop-out 0.3s ease forwards;
-  animation-delay: 1.5s;
+  animation: splash-backdrop-out 0.05s ease forwards;
+  animation-delay: 2.95s;
 }
 
 .splash-mascot-wrap svg {
@@ -1106,7 +1106,7 @@ h2 {
   opacity: 0;
   pointer-events: none;
   animation: splash-flash 0.1s ease-out forwards;
-  animation-delay: 0.9s;
+  animation-delay: 2s;
 }
 
 .splash-mascot-wrap {
@@ -1114,13 +1114,13 @@ h2 {
   display: inline-flex;
   opacity: 0;
   animation:
-    splash-mascot-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
-    splash-mascot-out 0.3s ease forwards 1s;
+    splash-mascot-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+    splash-mascot-out 0.3s ease forwards 2.1s;
 }
 
 .splash-mascot-wrap .mascot-remote {
-  animation: splash-remote-press 0.5s ease-in-out;
-  animation-delay: 0.4s;
+  animation: splash-remote-press 1.4s ease-in-out;
+  animation-delay: 0.6s;
 }
 
 .splash-ripple {
@@ -1135,7 +1135,7 @@ h2 {
   border: 2px solid var(--color-primary);
   opacity: 0;
   animation: splash-ripple 0.1s ease-out forwards;
-  animation-delay: 0.9s;
+  animation-delay: 2s;
 }
 
 .splash-logo {
@@ -1149,8 +1149,9 @@ h2 {
   letter-spacing: -0.02em;
   opacity: 0;
   animation:
-    splash-logo-flash-on 0.05s linear forwards 1s,
-    splash-logo-zoom 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards 1s;
+    splash-logo-flash-on 0.05s linear forwards 2.1s,
+    splash-logo-zoom 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards 2.1s,
+    splash-logo-out 0.05s ease forwards 2.9s;
 }
 
 @keyframes splash-mascot-in {
@@ -1218,7 +1219,7 @@ h2 {
   }
   to {
     opacity: 1;
-    text-shadow: 0 0 18px rgba(229, 9, 20, 0.9), 0 0 42px rgba(229, 9, 20, 0.6);
+    text-shadow: 0 0 4px rgba(229, 9, 20, 0.9), 0 0 14px rgba(229, 9, 20, 0.45);
   }
 }
 
@@ -1228,6 +1229,15 @@ h2 {
   }
   to {
     transform: translate(-50%, -50%) scale(2.5);
+  }
+}
+
+@keyframes splash-logo-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 

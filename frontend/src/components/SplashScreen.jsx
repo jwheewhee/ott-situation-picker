@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { PopcornMascot } from './Mascots'
 
-const SPLASH_DURATION_MS = 1800
+const SPLASH_DURATION_MS = 3100
 
 function SplashScreen({ onFinish }) {
   useEffect(() => {
