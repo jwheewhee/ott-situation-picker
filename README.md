@@ -107,10 +107,10 @@ FlixFit은 이 두 가지 문제 — **리뷰 부재**와 **상황 무시 추천
 
 ```mermaid
 flowchart LR
-    A[Netflix Top10 + TMDB discover<br/>콘텐츠 수집] --> B[네이버 블로그<br/>리뷰 검색]
-    B --> C[OpenAI 관련성 판단<br/>+ 요약 + 별점<br/>(병렬 처리)]
-    C --> D[fit_score 계산<br/>러닝타임 · 장르 · 감성점수]
-    D --> E[(Supabase<br/>PostgreSQL)]
+    A[Netflix Top10+TMDB discover 콘텐츠 수집] --> B[네이버 블로그 리뷰 검색]
+    B --> C[OpenAI 관련성 판단+요약+별점 병렬 처리]
+    C --> D[fit_score 계산: 러닝타임·장르·감성점수]
+    D --> E[(Supabase PostgreSQL)]
     E --> F[FastAPI 조회 API]
     F --> G[React 화면]
     G -.로그인/리뷰 작성.-> E
